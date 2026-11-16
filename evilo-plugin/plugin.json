@@ -19,12 +19,8 @@
     }
   },
   "catalog": {
-    "authors": [{"name": "evilo contributors"}],
-    "overseas": false,
-    "nsfw": false,
+    "authors": ["evilo contributors"],
     "description": "A self-contained SDK example demonstrating novel content and host-owned persistent key/value storage. This is demonstration content, not a real content provider.",
-    "createdAt": "2026-11-09T00:00:00Z",
-    "forceUpdate": false,
-    "minimumUsableVersionCode": 1
+    "createdAt": "2026-11-09"
   }
 }

@@ -10,7 +10,6 @@ import java.security.KeyFactory
 import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
-import java.time.Instant
 import java.util.Properties
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
@@ -20,6 +19,7 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.work.DisableCachingByDefault
@@ -73,7 +73,7 @@ abstract class CheckPluginAuthority : DefaultTask() {
     fun check() {
         val file = File(keyPath.get()).toPath()
         require(Files.isRegularFile(file) && !Files.isSymbolicLink(file)) {
-            "Missing authority key. Generate it with evilo's :evilo-app:generatePluginSigningKeys, not a template-local key generator."
+            "Missing publisher key. Supply an existing external identity; see .github/README.md. Release builds never generate keys."
         }
         require(!file.toRealPath().startsWith(repositoryDirectory.get().asFile.toPath().toRealPath())) { "Signing keys must stay outside the plugin repository." }
         val value = Files.readString(file).trim()
@@ -100,11 +100,13 @@ abstract class CheckPluginAuthority : DefaultTask() {
 abstract class ExportPluginRelease : DefaultTask() {
     @get:InputFile abstract val inputSpec: RegularFileProperty
     @get:InputFile abstract val iconFile: RegularFileProperty
+    @get:InputFile abstract val publicKeyFile: RegularFileProperty
+    @get:InputFile abstract val authorityMetadataFile: RegularFileProperty
     @get:InputDirectory abstract val packageDirectory: DirectoryProperty
     @get:InputFile abstract val sources: RegularFileProperty
     @get:Input abstract val packageBaseUrl: Property<String>
     @get:Input abstract val sourceRepositoryUrl: Property<String>
-    @get:Input abstract val sourceSnapshotUrl: Property<String>
+    @get:Input @get:Optional abstract val sourceSnapshotUrl: Property<String>
     @get:Input abstract val sourceRevision: Property<String>
     @get:Input abstract val publishedAt: Property<String>
     @get:OutputDirectory abstract val outputDirectory: DirectoryProperty
@@ -113,40 +115,41 @@ abstract class ExportPluginRelease : DefaultTask() {
     fun export() {
         val base = checkedUrl(packageBaseUrl.get()).trimEnd('/')
         val repository = checkedUrl(sourceRepositoryUrl.get())
-        val snapshot = checkedUrl(sourceSnapshotUrl.get())
+        val snapshot = sourceSnapshotUrl.orNull?.let(::checkedUrl)
         val revision = sourceRevision.get()
         require(Regex("[0-9a-f]{40}(?:[0-9a-f]{24})?").matches(revision)) { "Use a full immutable source commit." }
-        val date = Instant.parse(publishedAt.get()).toString()
         val spec = JsonSlurper().parse(inputSpec.get().asFile) as Map<*, *>
-        val descriptor = spec["descriptor"] as Map<*, *>
-        val metadata = spec["catalog"] as Map<*, *>
-        require(Instant.parse(metadata["createdAt"] as String) <= Instant.parse(date)) { "Publication date precedes plugin creation." }
+        val archive = sources.get().asFile
+        val catalog = createPluginCatalog(
+            spec = spec,
+            packageBaseUrl = base,
+            sourceRepositoryUrl = repository,
+            sourceSnapshotUrl = snapshot,
+            sourceRevision = revision,
+            sourceArchiveName = archive.name,
+            sourceArchiveSha256 = sha256(archive),
+            publishedAt = publishedAt.get(),
+        )
         val output = outputDirectory.get().asFile
         val packageFiles = packageDirectory.get().asFile
         require(File(packageFiles, "manifest.wlm").isFile && File(packageFiles, "artifacts").isDirectory) { "The signed package is incomplete." }
         output.mkdirs()
         packageFiles.copyRecursively(output, overwrite = true)
-        val archive = sources.get().asFile
         archive.copyTo(File(output, archive.name), overwrite = true)
         val icon = iconFile.get().asFile
         icon.copyTo(File(output, "icon.png"), overwrite = true)
-        val release = linkedMapOf<String, Any?>(
-            "version" to descriptor["version"], "versionCode" to descriptor["versionCode"],
-            "kinds" to descriptor["kinds"], "languages" to descriptor["languages"],
-            "manifestUrl" to "$base/manifest.wlm", "sourceUrl" to snapshot, "sourceRevision" to revision,
-            "sourceArchiveUrl" to "$base/${archive.name}", "sourceArchiveSha256" to sha256(archive),
-            "publishedAt" to date, "usable" to true, "minimumHostVersionCode" to 1,
-            "protocol" to descriptor["protocol"], "permissions" to descriptor["permissions"],
-        )
-        val plugin = metadata.entries.associate { it.key.toString() to it.value }.toMutableMap().apply {
-            put("id", descriptor["id"]); put("name", descriptor["name"]); put("version", descriptor["version"])
-            put("languages", descriptor["languages"]); put("kinds", descriptor["kinds"])
-            put("sourceUrl", repository); put("iconUrl", "$base/icon.png"); put("updatedAt", date)
-            put("certified", false); put("availableVersions", listOf(release))
+        val publicHex = publicKeyFile.get().asFile.readText().trim().lowercase()
+        val authority = Properties().apply { authorityMetadataFile.get().asFile.inputStream().use(::load) }
+        require(Regex("[0-9a-f]{64}").matches(publicHex) && authority.getProperty("publicKeyHex") == publicHex) {
+            "Publisher metadata does not match its public key."
         }
-        val catalog = linkedMapOf("schemaVersion" to 1, "id" to "${descriptor["id"]}.repository",
-            "name" to "${descriptor["name"]} plugins", "description" to "Publisher-maintained plugins; certification does not guarantee safety.",
-            "updatedAt" to date, "plugins" to listOf(plugin))
+        @Suppress("UNCHECKED_CAST")
+        val plugin = (catalog["plugins"] as List<*>).single() as MutableMap<String, Any?>
+        @Suppress("UNCHECKED_CAST")
+        val release = (plugin["availableVersions"] as List<*>).single() as MutableMap<String, Any?>
+        release["signing"] = mapOf("algorithm" to "Ed25519",
+            "keyId" to requireNotNull(authority.getProperty("keyId")), "publicKeyHex" to publicHex)
+        release["manifestSha256"] = sha256(File(output, "manifest.wlm"))
         File(output, "plugins.json").writeText(JsonOutput.prettyPrint(JsonOutput.toJson(catalog)) + "\n")
     }
 
