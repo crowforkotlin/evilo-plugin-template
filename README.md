@@ -39,9 +39,9 @@ to the app.
 ## SDK
 
 Modules consume `io.github.crowforkotlin.evilo:evilo-library:1.0.0`, which holds both
-the portable media models and the plugin/host protocol. The SDK lives in evilo's
+the portable media models and the plugin/host protocol. The SDK has its own repository,
 `evilo-library`; never copy protocol or model source here. Use
-`-Pevilo.sdkPath=../evilo` to substitute an unpublished SDK build.
+`-Pevilo.sdkPath=../evilo-library` to substitute an unpublished SDK build.
 
 `EviloPluginService` exposes synchronous `describe`, `start`, and `resume` JSON
 envelopes. `EviloHostService` exposes capabilities and private plugin storage.
@@ -119,7 +119,7 @@ and directly served HTTPS release URLs:
 ```sh
 ./gradlew :evilo-plugin:exportPluginRelease \
   -Pevilo.signingKeyDirectory="$PUBLISHER_SIGNING_DIRECTORY" \
-  -Pevilo.sdkPath=../evilo \
+  -Pevilo.sdkPath=../evilo-library \
   -Pplugin.sourceRevision="$SOURCE_COMMIT" \
   -Pplugin.releaseBaseUrl="$RELEASE_BASE_URL" \
   -Pplugin.sourceUrl="$SOURCE_REPOSITORY_URL" \

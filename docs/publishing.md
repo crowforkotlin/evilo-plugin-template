@@ -114,7 +114,7 @@ REPOSITORY=OWNER/REPO
   -Pwasmline.autoDownload=true
 ```
 
-Add `-Pevilo.sdkPath=../evilo` when the SDK is unpublished. A successful export
+Add `-Pevilo.sdkPath=../evilo-library` when the SDK is unpublished. A successful export
 proves the descriptor, signing identity, source ZIP, and catalog export. Delete
 `*/build/release/` afterwards so a local export cannot be mistaken for published
 bytes.
@@ -220,7 +220,8 @@ is needed because nothing is in production.
 | `The Secret derives a different public key than the application trusts.` | Secret and app key disagree; do not tag. Only reachable when the fork ships `verify_app_key.py`. |
 | `Official packages must use key ID evilo-root-v1` | Only when the fork ships `verify_app_key.py`; `EVILO_KEY_ID` overridden away from that label. |
 | `Missing publisher key` / `Invalid authority key format` | Secret absent, malformed, or restored inside the checkout. |
-| `Could not resolve io.github.crowforkotlin.evilo:evilo-library` | The pinned SDK version is not on Maven Central yet; see evilo's `docs/library-publishing.md`. |
+| `Could not resolve io.github.crowforkotlin.evilo:evilo-library` | The pinned SDK version is not on Maven Central yet; publish it locally from the `evilo-library`
+repository (`./gradlew publishToMavenLocal`) or use `-Pevilo.sdkPath=../evilo-library`. |
 | `Existing asset X differs; never overwrite it.` | Committed bytes changed after publication. |
 
 A workflow file is configuration, not evidence that a run signed or published
