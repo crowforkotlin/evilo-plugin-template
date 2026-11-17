@@ -1,114 +1,77 @@
-# GitHub Actions releases
+# Release automation
 
-`.github/workflows/plugin-release.yml` configures signing and publication on
-GitHub-hosted `ubuntu-24.04`. It runs for `v*` tags or manual dispatch naming an
-existing source tag. `vX.Y.Z` supplies the version; `package-vX.Y.Z` identifies the
-immutable exported release files. A configured workflow is not evidence that a
-run, build, signature check, or publication has succeeded.
+`.github/workflows/plugin-release.yml` signs and publishes on GitHub-hosted
+`ubuntu-24.04`. It runs for `v*` source tags and for manual dispatch naming an
+existing tag. `vX.Y.Z` supplies the version and must equal `descriptor.version`;
+`package-vX.Y.Z` holds the immutable exported files.
 
-## Repository configuration
+A workflow file is configuration, not evidence that a run signed, published, or
+passed anything.
 
-The only required repository Secret is `EVILO_PRIVATE_KEY_HEX`: the publisher's
-preserved Ed25519 private seed in hexadecimal. For a new independent publisher,
-generate the seed **once locally** and back it up privately before storing it as
-the repository Secret. Reuse it for future releases; never generate a fresh key
-in the workflow. Do not request or distribute the official publisher's private
-key, commit private material, include it in archives, or print it in logs.
+## Configuration
 
-Optional repository variables:
+| Setting | Purpose |
+| --- | --- |
+| Secret `EVILO_PRIVATE_KEY_HEX` | Preserved Ed25519 seed, 64 hex characters. The only required Secret. |
+| Variable `EVILO_KEY_ID` | Overrides the default `publisher-<fingerprint>` label, derived from SHA-256 of the public key bytes. |
+| Variable `PLUGIN_MODULE` | Selects the guest module; otherwise autodiscovered from the sole `*/plugin.json`. |
+| Variables `EVILO_SDK_REPOSITORY`, `EVILO_SDK_REVISION` | Check out an unpublished SDK at a full commit, outside the source archive. |
 
-- `EVILO_KEY_ID`: override the default `publisher-<fingerprint>` key ID, derived
-  from SHA-256 of the public key bytes. A key ID is a label, not proof of trust.
-- `PLUGIN_MODULE`: select the guest module explicitly if necessary; by default
-  it is autodiscovered from the guest `plugin.json`.
-- `EVILO_SDK_REPOSITORY` and `EVILO_SDK_REVISION`: set both to use an unpublished
-  SDK checkout pinned to a full immutable commit. This checkout is outside the
-  plugin source archive. Without the override, use the published SDK dependency.
+The seed is generated once locally and reused. The workflow derives the public
+key from it and never creates a key. A key ID is a label, not proof of trust.
 
-The official CopyManga repository already has its own `EVILO_PRIVATE_KEY_HEX`
-Secret configured. Its workflow defaults to the existing official key ID
-`evilo-root-v1`, with an optional `EVILO_KEY_ID` override. The app receives the
-matching official public key through `EVILO_PUBLIC_KEY_HEX`, not the private
-seed. Independent publishers use their own keys and the template fingerprint
-default; they do not reuse the official signing identity.
+## Jobs
 
-## Signing and public publication jobs
+`package` has read-only repository permissions. It restores the Secret into an
+external temporary directory, runs `:exportPluginRelease`, copies only public
+files, and deletes the restored key material.
 
-The signing job has read-only repository permissions. It restores the preserved
-Secret into an external temporary signing directory, derives the public key and
-key ID from that seed, exports the release, and cleans up restored private
-material. No fresh key is generated. The files handed to the separate publish
-job are public release files only, never the Secret or private signing directory.
+`publish` has write permissions and receives public files only:
 
-The publish job has repository write permissions and:
-
-1. Creates immutable `package-vX.Y.Z` containing raw release files: the signed
-   `manifest.wlm`, every referenced artifact, exact source ZIP/hash, icon, and
+1. Creates immutable `package-vX.Y.Z` with the signed `manifest.wlm`, every
+   referenced artifact, the exact source ZIP and hash, the icon, and the
    versioned catalog.
-2. Appends the release to `main`'s stable root `plugins.json`, preserving older
-   releases' effective metadata. If common permissions, protocol, kinds,
-   languages, or source URL change, older entries get explicit overrides.
-3. Creates a GitHub Release with a package ZIP and the exact source ZIP. The
-   package includes public manifest, icon, and catalog files, not private keys
-   or the optional external SDK checkout.
+2. Appends the release to `main`'s `plugins.json`, preserving older releases'
+   effective metadata. Changed shared permissions, protocol, kinds, languages, or
+   source URL become explicit per-release overrides on older entries.
+3. Creates a GitHub Release with a package ZIP and the exact source ZIP.
 
-Never overwrite old package files, reuse a version for different source, or
-replace an old source hash. Keep `main/plugins.json` as the subscription address;
-GitHub Release pages and ZIP URLs are not subscription catalogs.
+Never overwrite package files, reuse a version for changed source, or replace a
+published source hash. Keep `main/plugins.json` as the subscription address.
 
-Removing a GitHub Release does not require deleting its source tag or immutable
-package files. Retain existing tags, package/download URLs, and historical
-catalog metadata. For CopyManga, restoring the original `v1.0.0` Release does
-not publish the next new version, `1.0.1`.
+## Recover a Release
 
-## Recover a deleted or incomplete GitHub Release
-
-Dispatch the current workflow from `main` with the existing `source_tag` and
-`republish=true`. If the source tag is missing remotely, first push the preserved
-local tag; never recreate it at a new commit. The `republish` job skips signing
-and packaging and does not read the private-key Secret. It reads public files
-from `package-vX.Y.Z`, falling back to `vX.Y.Z` for legacy packages, without
-changing tags or `main/plugins.json`.
+Dispatch from `main` with the existing `source_tag` and `republish=true`:
 
 ```sh
 gh workflow run plugin-release.yml --ref main \
   -f source_tag=v1.0.0 -f republish=true
 ```
 
-Recovery creates a draft Release, uploads the package ZIP, exact source ZIP,
-manifest, versioned catalog, and icon, checks uploaded sizes and SHA-256 digests,
-then publishes the draft. A retry uploads only missing assets and refuses to
-overwrite different bytes. Use this mode after an asset-upload failure or
-Release deletion; do not rebuild an already published version. Legacy catalogs
-without a manifest digest retain their original bytes and signing metadata.
+If the source tag is missing remotely, push the preserved local tag; never
+recreate it at a new commit. This job skips signing and packaging, does not read
+the Secret, reads public files from `package-vX.Y.Z` (falling back to `vX.Y.Z` for
+legacy packages), uploads only missing assets, rejects different existing bytes,
+and then publishes the draft.
 
 ## Helper scripts
 
-- `scripts/release_identity.py` reads the sole guest `plugin.json` (or
-  `PLUGIN_MODULE`), requires a clean checkout at `SOURCE_TAG=v<version>`, and
-  writes metadata to `GITHUB_OUTPUT`. URLs derive from `GITHUB_REPOSITORY`.
-- `scripts/publisher_key.py DIRECTORY` restores the preserved Secret and derives public metadata outside the checkout. It does not generate keys.
-- `scripts/export_bundle.py SOURCE OUTPUT` copies only public files and checks manifest, source-archive, and artifact hashes.
-- `scripts/publish_release.py BUNDLE` publishes immutable package files and appends the stable catalog, then delegates Release assets to `restore_release.py`. After the atomic Git push, retry only with `republish=true`.
-- `scripts/restore_release.py TAG` restores Release assets from immutable Git blobs without building, signing, executing archived scripts, or changing the catalog. Existing different asset bytes are rejected.
-- `scripts/merge_catalog.py OLD NEW OUTPUT` appends an exported release to an
-  existing catalog. It refuses version reuse and non-increasing version codes.
-  Older effective metadata is preserved when common catalog fields change.
-
-Catalog merging does not build or sign a plugin. Manual `exportPluginRelease`
-remains supported; see the root README for external signing paths and explicit
-source revision, release URL, and publication-date inputs.
+| Script | Contract |
+| --- | --- |
+| `release_identity.py` | Reads the sole guest `plugin.json`, requires a clean checkout at `v<version>`, writes module, version, plugin ID, revision, and derived URLs to `GITHUB_OUTPUT`. |
+| `publisher_key.py DIR` | Restores the Secret and derives `private.key`, `public.key`, and `authority.properties` outside the checkout. Never generates keys. |
+| `export_bundle.py SRC OUT` | Copies public files and verifies manifest, source-archive, and artifact hashes. |
+| `publish_release.py BUNDLE` | Publishes immutable package files, appends the stable catalog, then delegates assets to `restore_release.py`. Retry only with `republish=true`. |
+| `restore_release.py TAG` | Restores Release assets from immutable Git blobs. Builds nothing, signs nothing, executes no archived script, and leaves the catalog unchanged. |
+| `merge_catalog.py OLD NEW OUT` | Appends an exported release, refusing version reuse and non-increasing version codes. |
 
 ## Installation trust
 
-The app can read a third-party publisher's public key declared by a catalog,
-but subscribing does not trust it automatically. Approval applies to the exact
-version, public-key fingerprint, and permissions. Wasmline signature verification
-is mandatory and the approved manifest digest is pinned. Different publishers
-cannot replace an installed plugin by reusing its ID, and private key-value
-storage is scoped by publisher identity and plugin ID. A valid signature does
-not prove code safety. Users never enter private seeds or raw public-key fields.
+A catalog-declared publisher key is not trusted automatically. Approval covers
+the exact version, public-key fingerprint, and permissions; Wasmline verification
+stays mandatory and the approved manifest digest is pinned. Different publishers
+cannot replace an installed plugin by reusing its ID, and storage is scoped by
+publisher identity and plugin ID. Users never enter seeds, key IDs, or raw keys.
+A valid signature does not prove code safety.
 
-The workflow and helper descriptions are configuration documentation, not
-execution records. New-version builds and public-asset recovery are separate
-operations.
+New-version builds and public-asset recovery are separate operations.
