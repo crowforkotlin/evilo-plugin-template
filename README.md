@@ -38,7 +38,7 @@ to the app.
 
 ## SDK
 
-Modules consume `io.github.crowforkotlin.evilo:evilo-library:1.0.0`, which holds both
+Modules consume `io.github.crowforkotlin.evilo:evilo-library:0.0.1`, which holds both
 the portable media models and the plugin/host protocol. The SDK lives in evilo's
 `evilo-library`; never copy protocol or model source here. Use
 `-Pevilo.sdkPath=../evilo` to substitute an unpublished SDK build.
