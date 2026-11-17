@@ -38,7 +38,7 @@ to the app.
 
 ## SDK
 
-Modules consume `io.github.crowforkotlin.evilo:evilo-library:1.0.0`, which holds both
+Modules consume `io.github.crowforkotlin.evilo:evilo-library:0.0.1`, which holds both
 the portable media models and the plugin/host protocol. The SDK lives in evilo's
 `evilo-library`; never copy protocol or model source here. Use
 `-Pevilo.sdkPath=../evilo` to substitute an unpublished SDK build.
@@ -75,7 +75,6 @@ the seed; it never creates a new key.
 | Secret `EVILO_PRIVATE_KEY_HEX` | Preserved Ed25519 seed, 64 hex characters. Required. |
 | Variable `EVILO_KEY_ID` | Overrides the default `publisher-<fingerprint>` label. |
 | Variable `PLUGIN_MODULE` | Selects the guest module when autodiscovery is ambiguous. |
-| Variables `EVILO_SDK_REPOSITORY`, `EVILO_SDK_REVISION` | Check out an unpublished SDK at a full commit. Set both or neither. |
 
 A key ID is a label, not proof of trust. A catalog may declare its publisher's
 public key, but declaring it does not trust it: the app asks for approval of the
@@ -101,13 +100,12 @@ supplied. The runtime exposes no guest fuel or linear-memory budget.
 
 `.github/workflows/plugin-release.yml` runs on GitHub-hosted `ubuntu-24.04` for
 `v*` source tags and for manual dispatch naming an existing tag. `vX.Y.Z` must
-equal `descriptor.version`. See [.github/README.md](.github/README.md) for the job
-contract, helper scripts, and asset recovery.
+equal `descriptor.version`.
 
-The signing job restores the Secret into an external temporary directory, exports
-the release, and deletes it. The publish job receives public files only and
-creates tag `package-vX.Y.Z`, appends the release to `main`'s `plugins.json`, and
-publishes a GitHub Release with a package ZIP and the exact source ZIP.
+Step-by-step operator procedure — key setup, version selection, verification,
+tagging, publication checks, asset recovery, rotation, and failure modes — is in
+[docs/publishing.md](docs/publishing.md). See
+[.github/README.md](.github/README.md) for the job contract and helper scripts.
 
 Never overwrite existing package files, reuse a version for changed source, or
 replace a published source hash. Keep `main/plugins.json` as the subscription

@@ -15,7 +15,6 @@ passed anything.
 | Secret `EVILO_PRIVATE_KEY_HEX` | Preserved Ed25519 seed, 64 hex characters. The only required Secret. |
 | Variable `EVILO_KEY_ID` | Overrides the default `publisher-<fingerprint>` label, derived from SHA-256 of the public key bytes. |
 | Variable `PLUGIN_MODULE` | Selects the guest module; otherwise autodiscovered from the sole `*/plugin.json`. |
-| Variables `EVILO_SDK_REPOSITORY`, `EVILO_SDK_REVISION` | Check out an unpublished SDK at a full commit, outside the source archive. |
 
 The seed is generated once locally and reused. The workflow derives the public
 key from it and never creates a key. A key ID is a label, not proof of trust.
