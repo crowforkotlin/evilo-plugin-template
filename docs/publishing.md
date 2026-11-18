@@ -17,7 +17,7 @@ not visible here.
 | --- | --- | --- | --- |
 | `EVILO_PRIVATE_KEY_HEX` | Secret | yes | Preserved Ed25519 seed, 64 lowercase hex characters. Signs the manifest. |
 | `EVILO_KEY_ID` | Variable | no | Label override; defaults to `publisher-<fingerprint>`. |
-| `PLUGIN_MODULE` | Variable | no | Only when more than one `*/plugin.json` exists. |
+| `PLUGIN_MODULE` | Variable | no | Only when more than one `*/plugin-spec.json` exists. |
 
 This template's workflow reads only `secrets.EVILO_PRIVATE_KEY_HEX` and
 `vars.EVILO_KEY_ID`; it never reads a public key, so `EVILO_PUBLIC_KEY_HEX` is
@@ -31,7 +31,7 @@ reference it consistently: `vars.EVILO_PUBLIC_KEY_HEX` and
 `secrets.EVILO_PUBLIC_KEY_HEX` are different settings.
 
 A public verification key is not secret material in the end: the exported
-`plugins.json` carries `availableVersions[].signing.publicKeyHex` in clear text,
+`catalog.json` carries `availableVersions[].signing.publicKeyHex` in clear text,
 because the app must read it to verify a signature. A Secret hides it from the
 settings page and from anonymous API callers, not from anyone who fetches your
 catalog.
@@ -74,18 +74,18 @@ gh run list --repo OWNER/REPO -w identity-check.yml -L 1
 
 ## 2. Choosing the next version
 
-Edit the guest `*/plugin.json` only. `descriptor.version` must be a new semver,
+Edit the guest `*/plugin-spec.json` only. `descriptor.version` must be a new semver,
 `descriptor.versionCode` a strictly larger integer than every published entry,
-and both must match the source you are shipping. Changed code, permissions,
-hosts, or headers always need a new version: never re-tag, never re-export,
-never reuse a version to change its bytes.
+and both must match the source you are shipping. Changed code always needs a
+new version: never re-tag, never re-export, never reuse a version to change its
+bytes.
 
 ```sh
 python3 - <<'PY'
 import json, pathlib
-spec = json.load(open('evilo-plugin/plugin.json'))['descriptor']
+spec = json.load(open('evilo-plugin/plugin-spec.json'))['descriptor']
 print('building :', spec['version'], spec['versionCode'])
-path = pathlib.Path('plugins.json')
+path = pathlib.Path('catalog.json')
 if path.exists():
     plugin, = json.loads(path.read_text())['plugins']
     published = [(v['version'], v['versionCode']) for v in plugin['availableVersions']]
@@ -136,16 +136,16 @@ git push origin v1.0.1  # triggers plugin-release.yml
 ## 5. What the workflow does
 
 1. `package` (read-only): resolves module, version, plugin ID, and revision from
-   the tagged `plugin.json`, restores the Secret into `$RUNNER_TEMP`, runs
+   the tagged `plugin-spec.json`, restores the Secret into `$RUNNER_TEMP`, runs
    `:exportPluginRelease`, copies only public files, deletes the key material.
 2. `publish` (write): refuses if `package-vX.Y.Z` exists, switches to the default
    branch, copies the exported files to `releases/X.Y.Z/`, appends the release to
-   `plugins.json` while older entries keep their effective
-   permissions/protocol/kinds/languages, commits
+   `catalog.json` while older entries keep their effective
+   kinds/languages, commits
    `release(plugins): publish signed version X.Y.Z`, tags `package-vX.Y.Z`, and
    pushes branch and tag atomically.
 3. Release assets: `restore_release.py` creates a draft Release, uploads the
-   package ZIP, exact source ZIP, `manifest.wlm`, `plugins.json`, and `icon.png`,
+   package ZIP, exact source ZIP, `manifest.wlm`, `catalog.json`, and `icon.png`,
    verifies sizes and SHA-256 digests, then publishes it.
 
 The catalog push happens before asset upload, so an upload failure leaves the
@@ -157,7 +157,7 @@ catalog valid and is repaired with `republish=true`, never with a new version.
 gh run list --repo "$REPOSITORY" -w plugin-release.yml -L 3
 gh release view v1.0.1 --repo "$REPOSITORY"
 
-curl -fsSL "https://raw.githubusercontent.com/$REPOSITORY/main/plugins.json" \
+curl -fsSL "https://raw.githubusercontent.com/$REPOSITORY/main/catalog.json" \
   | python3 -c "import json,sys; p=json.load(sys.stdin)['plugins'][0]; \
 print([(v['version'], v['versionCode'], v.get('manifestSha256')) for v in p['availableVersions']])"
 
@@ -210,7 +210,7 @@ is needed because nothing is in production.
 
 | Symptom | Cause |
 | --- | --- |
-| `Set PLUGIN_MODULE to the guest module name.` | More than one `*/plugin.json`; set the variable. |
+| `Set PLUGIN_MODULE to the guest module name.` | More than one `*/plugin-spec.json`; set the variable. |
 | `Source tag must match descriptor.version` | Tag and `descriptor.version` disagree. |
 | `Commit all released source before packaging.` | Dirty checkout at the tagged commit. |
 | `Never reuse published versions; versionCode must increase.` | Version or `versionCode` not advanced. |

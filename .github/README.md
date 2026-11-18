@@ -14,7 +14,7 @@ passed anything.
 | --- | --- |
 | Secret `EVILO_PRIVATE_KEY_HEX` | Preserved Ed25519 seed, 64 hex characters. The only required Secret. |
 | Variable `EVILO_KEY_ID` | Overrides the default `publisher-<fingerprint>` label, derived from SHA-256 of the public key bytes. |
-| Variable `PLUGIN_MODULE` | Selects the guest module; otherwise autodiscovered from the sole `*/plugin.json`. |
+| Variable `PLUGIN_MODULE` | Selects the guest module; otherwise autodiscovered from the sole `*/plugin-spec.json`. |
 
 The seed is generated once locally and reused. The workflow derives the public
 key from it and never creates a key. A key ID is a label, not proof of trust.
@@ -30,13 +30,13 @@ files, and deletes the restored key material.
 1. Creates immutable `package-vX.Y.Z` with the signed `manifest.wlm`, every
    referenced artifact, the exact source ZIP and hash, the icon, and the
    versioned catalog.
-2. Appends the release to `main`'s `plugins.json`, preserving older releases'
-   effective metadata. Changed shared permissions, protocol, kinds, languages, or
-   source URL become explicit per-release overrides on older entries.
+2. Appends the release to `main`'s `catalog.json`, preserving older releases'
+   effective metadata. Changed kinds, languages, or source URL become explicit
+   per-release overrides on older entries.
 3. Creates a GitHub Release with a package ZIP and the exact source ZIP.
 
 Never overwrite package files, reuse a version for changed source, or replace a
-published source hash. Keep `main/plugins.json` as the subscription address.
+published source hash. Keep `main/catalog.json` as the subscription address.
 
 ## Recover a Release
 
@@ -57,7 +57,7 @@ and then publishes the draft.
 
 | Script | Contract |
 | --- | --- |
-| `release_identity.py` | Reads the sole guest `plugin.json`, requires a clean checkout at `v<version>`, writes module, version, plugin ID, revision, and derived URLs to `GITHUB_OUTPUT`. |
+| `release_identity.py` | Reads the sole guest `plugin-spec.json`, requires a clean checkout at `v<version>`, writes module, version, plugin ID, revision, and derived URLs to `GITHUB_OUTPUT`. |
 | `publisher_key.py DIR` | Restores the Secret and derives `private.key`, `public.key`, and `authority.properties` outside the checkout. Never generates keys. |
 | `export_bundle.py SRC OUT` | Copies public files and verifies manifest, source-archive, and artifact hashes. |
 | `publish_release.py BUNDLE` | Publishes immutable package files, appends the stable catalog, then delegates assets to `restore_release.py`. Retry only with `republish=true`. |
@@ -67,8 +67,8 @@ and then publishes the draft.
 ## Installation trust
 
 A catalog-declared publisher key is not trusted automatically. Approval covers
-the exact version, public-key fingerprint, and permissions; Wasmline verification
-stays mandatory and the approved manifest digest is pinned. Different publishers
+the exact version and public-key fingerprint; Wasmline verification stays
+mandatory and the approved manifest digest is pinned. Different publishers
 cannot replace an installed plugin by reusing its ID, and storage is scoped by
 publisher identity and plugin ID. Users never enter seeds, key IDs, or raw keys.
 A valid signature does not prove code safety.

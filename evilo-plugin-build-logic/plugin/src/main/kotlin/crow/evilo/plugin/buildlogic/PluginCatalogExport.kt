@@ -12,8 +12,8 @@ internal fun createPluginCatalog(
     sourceArchiveSha256: String,
     publishedAt: String,
 ): Map<String, Any?> {
-    val descriptor = requireNotNull(spec["descriptor"] as? Map<*, *>) { "plugin.json must contain a descriptor object." }
-    val metadata = requireNotNull(spec["catalog"] as? Map<*, *>) { "plugin.json must contain a catalog object." }
+    val descriptor = requireNotNull(spec["descriptor"] as? Map<*, *>) { "plugin-spec.json must contain a descriptor object." }
+    val metadata = requireNotNull(spec["catalog"] as? Map<*, *>) { "plugin-spec.json must contain a catalog object." }
     val publication = parseCatalogDate(publishedAt)
     if (metadata.containsKey("createdAt")) {
         val createdAt = metadata["createdAt"]
@@ -38,7 +38,7 @@ internal fun createPluginCatalog(
         for (field in listOf("id", "name", "kinds", "languages")) {
             put(field, requireNotNull(descriptor[field]) { "The descriptor must declare its $field." })
         }
-        for (field in listOf("protocol", "permissions")) {
+        for (field in listOf("protocol")) {
             if (descriptor.containsKey(field)) put(field, descriptor[field]) else remove(field)
         }
         put("sourceUrl", sourceRepositoryUrl)
