@@ -4,9 +4,7 @@ A Kotlin/Wasm plugin repository for the evilo app, built on the Wasmline plugin
 protocol. It ships a self-contained demonstration novel that reads and writes
 host storage; it makes no network requests and is not a real content provider.
 
-Use it as the starting point for a provider repository. Every other plugin
-repository, including the official `evilo-plugin-copymanga`, is a fork of this
-layout.
+Use it as the starting point for a provider repository.
 
 ## Layout
 
