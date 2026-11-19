@@ -98,6 +98,13 @@ The network is reachable through the host, which enforces:
 
 Redirects are not followed. Browsers still apply CORS and mixed-content rules;
 no proxy is supplied. The runtime exposes no guest fuel or linear-memory budget.
+The catalog is one document every subscriber downloads, so publishing keeps it
+under 10 MiB. When appending a release would exceed that, `merge_catalog.py` drops
+the oldest releases and reports how many. A release at or above the plugin's
+`minimumUsableVersionCode` is never dropped: it is a promise to subscribers. If
+the promises alone exceed the limit, the publish fails rather than break one.
+Override the limit only when the app's `MAX_CATALOG_BYTES` changes too.
+
 
 ## Releases
 
@@ -144,6 +151,10 @@ a source hash does not prove reproducible builds or code safety.
 | `evilo-plugin/plugin-spec.json` | you | The only hand-edited file: `descriptor` and `catalog`. No URLs, hashes, or dates beyond `createdAt`. |
 | `releases/<version>/catalog.json` | the release workflow | Immutable snapshot of one published version, frozen into the `package-v<version>` tag. |
 | `catalog.json` at the repository root | the release workflow | The subscription catalog. Every release appends to it. |
+Keep the subscription URL stable. Older release entries are dropped automatically
+once the document reaches its byte budget; set `minimumUsableVersionCode` if a
+version must stay available. Give a release explicit overrides when its kinds or
+languages differ from the plugin defaults.
 
 `exportPluginRelease` computes the manifest and source-archive SHA-256 values,
 derives artifact URLs from `-Pplugin.releaseBaseUrl`, and writes the catalog. Do
